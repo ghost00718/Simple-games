@@ -1,0 +1,106 @@
+#include "games.h"
+#include <stdlib.h>
+
+#define SCREEN_W 1920
+#define SCREEN_H 1080
+#define GRAVITY 1
+#define FLAP_STRENGTH -14
+#define PIPE_GAP 260
+#define PIPE_WIDTH 90
+#define PIPE_SPEED 6
+#define BIRD_SIZE 50
+
+typedef struct { SDL_Rect rect; int active; } Pipe;
+
+static SDL_Rect bird;
+static int velocity, score, game_over;
+static Pipe pipes[4];
+static uint32_t prev_buttons;
+
+static void spawn_pipe(int i, int x) {
+    pipes[i].rect.x = x;
+    pipes[i].rect.y = 150 + rand() % (SCREEN_H - 300 - PIPE_GAP);
+    pipes[i].rect.w = PIPE_WIDTH;
+    pipes[i].active = 1;
+}
+
+static void flappy_init(SDL_Renderer *renderer) {
+    (void)renderer;
+    bird = (SDL_Rect){ 300, SCREEN_H / 2, BIRD_SIZE, BIRD_SIZE };
+    velocity = 0; score = 0; game_over = 0; prev_buttons = 0;
+    for (int i = 0; i < 4; i++) spawn_pipe(i, SCREEN_W + i * 400);
+}
+
+static void flappy_update(ScePadData *pad) {
+    if (game_over) {
+        if ((pad->buttons & ORBIS_PAD_BUTTON_CROSS) && !(prev_buttons & ORBIS_PAD_BUTTON_CROSS))
+            flappy_init(NULL);
+        prev_buttons = pad->buttons;
+        return;
+    }
+
+    if ((pad->buttons & ORBIS_PAD_BUTTON_UP) && !(prev_buttons & ORBIS_PAD_BUTTON_UP))
+        velocity = FLAP_STRENGTH;
+
+    velocity += GRAVITY;
+    bird.y += velocity;
+    if (bird.y < 0) { bird.y = 0; velocity = 0; }
+    if (bird.y + bird.h > SCREEN_H) { bird.y = SCREEN_H - bird.h; game_over = 1; }
+
+    for (int i = 0; i < 4; i++) {
+        if (!pipes[i].active) continue;
+        pipes[i].rect.x -= PIPE_SPEED;
+
+        if (pipes[i].rect.x + PIPE_WIDTH < bird.x && pipes[i].rect.x + PIPE_WIDTH + PIPE_SPEED >= bird.x)
+            score++;
+
+        if (pipes[i].rect.x + PIPE_WIDTH < 0) {
+            int max_x = 0;
+            for (int j = 0; j < 4; j++) if (pipes[j].rect.x > max_x) max_x = pipes[j].rect.x;
+            spawn_pipe(i, max_x + 400);
+        }
+
+        SDL_Rect top = { pipes[i].rect.x, 0, PIPE_WIDTH, pipes[i].rect.y };
+        SDL_Rect bottom = { pipes[i].rect.x, pipes[i].rect.y + PIPE_GAP, PIPE_WIDTH, SCREEN_H - (pipes[i].rect.y + PIPE_GAP) };
+        if (SDL_HasIntersection(&bird, &top) || SDL_HasIntersection(&bird, &bottom))
+            game_over = 1;
+    }
+    prev_buttons = pad->buttons;
+}
+
+static void flappy_render(SDL_Renderer *renderer) {
+    SDL_SetRenderDrawColor(renderer, 92, 148, 252, 255);
+    SDL_RenderClear(renderer);
+
+    SDL_SetRenderDrawColor(renderer, 40, 180, 70, 255);
+    for (int i = 0; i < 4; i++) {
+        if (!pipes[i].active) continue;
+        SDL_Rect top = { pipes[i].rect.x, 0, PIPE_WIDTH, pipes[i].rect.y };
+        SDL_Rect bottom = { pipes[i].rect.x, pipes[i].rect.y + PIPE_GAP, PIPE_WIDTH, SCREEN_H - (pipes[i].rect.y + PIPE_GAP) };
+        SDL_RenderFillRect(renderer, &top);
+        SDL_RenderFillRect(renderer, &bottom);
+    }
+
+    SDL_SetRenderDrawColor(renderer, 255, 220, 0, 255);
+    SDL_RenderFillRect(renderer, &bird);
+
+    // score shown as blocks for now — real digits once font rendering is wired up
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    for (int i = 0; i < score && i < 20; i++) {
+        SDL_Rect b = { 40 + i * 14, 40, 10, 10 };
+        SDL_RenderFillRect(renderer, &b);
+    }
+
+    if (game_over) {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+        SDL_Rect overlay = { SCREEN_W/2 - 200, SCREEN_H/2 - 60, 400, 120 };
+        SDL_RenderFillRect(renderer, &overlay);
+    }
+}
+
+static void flappy_cleanup(void) {}
+
+GameModule flappy_get_module(void) {
+    GameModule m = { flappy_init, flappy_update, flappy_render, flappy_cleanup };
+    return m;
+}
