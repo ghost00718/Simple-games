@@ -1,0 +1,38 @@
+#include "menu.h"
+
+static GameEntry *games;
+static int game_count, selected;
+static uint32_t prev_buttons;
+
+void menu_init(GameEntry *entries, int count) {
+    games = entries; game_count = count; selected = 0; prev_buttons = 0;
+}
+
+int menu_update(ScePadData *pad) {
+    int launch = -1;
+    if ((pad->buttons & ORBIS_PAD_BUTTON_UP) && !(prev_buttons & ORBIS_PAD_BUTTON_UP))
+        selected = (selected - 1 + game_count) % game_count;
+    if ((pad->buttons & ORBIS_PAD_BUTTON_DOWN) && !(prev_buttons & ORBIS_PAD_BUTTON_DOWN))
+        selected = (selected + 1) % game_count;
+    if ((pad->buttons & ORBIS_PAD_BUTTON_CROSS) && !(prev_buttons & ORBIS_PAD_BUTTON_CROSS))
+        launch = selected;
+    prev_buttons = pad->buttons;
+    return launch;
+}
+
+void menu_render(SDL_Renderer *renderer) {
+    SDL_SetRenderDrawColor(renderer, 18, 18, 24, 255);
+    SDL_RenderClear(renderer);
+
+    for (int i = 0; i < game_count; i++) {
+        SDL_Rect row = { 80, 150 + i * 90, 500, 70 };
+        SDL_SetRenderDrawColor(renderer, i == selected ? 60 : 40, i == selected ? 120 : 40, i == selected ? 220 : 50, 255);
+        SDL_RenderFillRect(renderer, &row);
+        // game name text goes here once font rendering is wired up
+    }
+
+    // preview panel — real thumbnail PNG once image loading is wired up
+    SDL_Rect preview = { 700, 150, 900, 700 };
+    SDL_SetRenderDrawColor(renderer, 70, 70, 90, 255);
+    SDL_RenderFillRect(renderer, &preview);
+}
