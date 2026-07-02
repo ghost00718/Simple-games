@@ -1,0 +1,9 @@
+#ifndef MENU_H
+#define MENU_H
+#include "games.h"
+
+void menu_init(GameEntry *entries, int count);
+int  menu_update(ScePadData *pad); // returns index to launch, or -1
+void menu_render(SDL_Renderer *renderer);
+
+#endif
